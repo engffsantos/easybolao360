@@ -19,6 +19,8 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+const FALLBACK_ADMIN_EMAIL = 'engffsantos@gmail.com';
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,12 +31,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser);
       
       if (currentUser) {
+        try {
+          const adminSnap = await getDoc(doc(db, 'admins', currentUser.uid));
+          setIsAdmin(adminSnap.exists() || currentUser.email === FALLBACK_ADMIN_EMAIL);
+        } catch (error) {
+          console.error('Error checking admin role:', error);
+        }
+
         // Sync user profile to Firestore
         const userRef = doc(db, 'users', currentUser.uid);
-        const userSnap = await getDoc(userRef);
-        
-        if (!userSnap.exists()) {
-          try {
+        try {
+          const userSnap = await getDoc(userRef);
+
+          if (!userSnap.exists()) {
             await setDoc(userRef, {
               uid: currentUser.uid,
               name: currentUser.displayName || 'Usuário',
@@ -48,25 +57,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               createdAt: new Date().toISOString(),
               lastLoginAt: new Date().toISOString(),
             });
-          } catch (error) {
-            console.error('Error creating user profile:', error);
-          }
-        } else {
-          try {
-            // Check if admin
-            const adminRef = doc(db, 'admins', currentUser.uid);
-            const adminSnap = await getDoc(adminRef);
-            setIsAdmin(adminSnap.exists() || currentUser.email === 'engffsantos@gmail.com');
-            
+          } else {
             await setDoc(userRef, {
-              ...userSnap.data(),
               name: currentUser.displayName || userSnap.data().name,
               photoURL: currentUser.photoURL || userSnap.data().photoURL,
               lastLoginAt: new Date().toISOString(),
             }, { merge: true });
-          } catch (error) {
-            console.error('Error updating user login time:', error);
           }
+        } catch (error) {
+          console.error('Error syncing user profile:', error);
         }
       } else {
         setIsAdmin(false);

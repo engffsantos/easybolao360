@@ -1,20 +1,54 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# EasyBolão360
 
-# Run and deploy your AI Studio app
+Bolão da Copa do Mundo: faça palpites nos jogos, dispute o ranking global e crie grupos privados com amigos.
 
-This contains everything you need to run your app locally.
+## Stack
 
-View your app in AI Studio: https://ai.studio/apps/e295581b-73db-4c93-8157-44e53eca4756
+- [Next.js 15](https://nextjs.org/) (App Router) + React 19 + TypeScript
+- [Tailwind CSS 4](https://tailwindcss.com/)
+- [Firebase](https://firebase.google.com/) (Auth com Google + Firestore)
 
-## Run Locally
+## Estrutura
 
-**Prerequisites:**  Node.js
+```text
+app/                # Páginas (App Router)
+  page.tsx          # Dashboard
+  jogos/            # Lista de jogos e palpites
+  grupos/           # Grupos privados (lista e detalhe)
+  ranking/          # Ranking global
+  perfil/           # Perfil do usuário
+  admin/            # Painel administrativo (jogos e resultados)
+components/
+  layout-wrapper.tsx# Shell da aplicação (header, nav, gate de login)
+  ui.tsx            # Componentes compartilhados (Leaderboard, Avatar, etc.)
+lib/
+  firebase.ts       # Inicialização do Firebase
+  firestore.ts      # Camada de acesso a dados (Firestore)
+  auth-context.tsx  # Contexto de autenticação
+  types.ts          # Modelos tipados das coleções
+  utils.ts          # Helpers (cálculo de pontos, formatação)
+```
 
+## Rodando localmente
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. Instale as dependências:
+
+   ```bash
+   npm install
+   ```
+
+2. Configure o Firebase em `firebase-applet-config.json` (projeto, API key e `firestoreDatabaseId`).
+3. Inicie o servidor de desenvolvimento:
+
+   ```bash
+   npm run dev
+   ```
+
+## Pontuação
+
+| Acerto | Pontos |
+| --- | --- |
+| Placar exato | 25 |
+| Resultado + gols de um time | 18 |
+| Apenas resultado | 10 |
+| Apenas gols de um time | 4 |

@@ -1,8 +1,9 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { db } from '@/lib/firebase';
-import { collection, doc, getDoc, getDocs, limit, orderBy, query, where, getCountFromServer } from 'firebase/firestore';
+import { fetchGames, fetchRankingPosition, fetchUserProfile } from '@/lib/firestore';
+import type { Game } from '@/lib/types';
+import { EmptyState, TeamColumn } from '@/components/ui';
 import { Trophy, CalendarClock, AlertCircle, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -10,7 +11,7 @@ import { useEffect, useState } from 'react';
 export default function Dashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState({ totalPoints: 0, position: 0 });
-  const [nextGames, setNextGames] = useState<any[]>([]);
+  const [nextGames, setNextGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -18,30 +19,16 @@ export default function Dashboard() {
 
     const fetchDashboard = async () => {
       try {
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        let userPoints = 0;
-        if (userSnap.exists()) {
-          userPoints = userSnap.data().totalPoints || 0;
-          setStats(prev => ({ ...prev, totalPoints: userPoints }));
-        }
-
-        const usersRef = collection(db, 'users');
-        const qRank = query(usersRef, where('totalPoints', '>', userPoints));
-        const countSnap = await getCountFromServer(qRank);
-        const position = countSnap.data().count + 1;
-        setStats(prev => ({ ...prev, position }));
-
-        const gamesRef = collection(db, 'games');
-        const qGames = query(
-          gamesRef, 
-          orderBy('matchDate', 'asc'),
-          limit(5)
-        );
-        const gamesSnap = await getDocs(qGames);
-        setNextGames(gamesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const profile = await fetchUserProfile(user.uid);
+        const totalPoints = profile?.totalPoints || 0;
+        const [position, games] = await Promise.all([
+          fetchRankingPosition(totalPoints),
+          fetchGames('asc', 5),
+        ]);
+        setStats({ totalPoints, position });
+        setNextGames(games);
       } catch (error) {
-        console.error("Dashboard fetch error", error);
+        console.error('Dashboard fetch error', error);
       } finally {
         setLoading(false);
       }
@@ -77,7 +64,7 @@ export default function Dashboard() {
           </div>
           <h1 className="text-3xl font-bold mb-1 tracking-tight">Olá, {user?.displayName?.split(' ')[0]}</h1>
           <p className="text-slate-400 mb-6 max-w-xl">Pronto para acompanhar a rodada? Mantenha seus palpites atualizados para subir no ranking.</p>
-          
+
           <div className="flex gap-4 max-w-md">
             <div className="bg-slate-800 rounded-xl p-4 flex-1 border border-slate-700">
               <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Seus Pontos</p>
@@ -101,13 +88,11 @@ export default function Dashboard() {
       </div>
 
       {nextGames.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center shadow-sm">
-          <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
-            <CalendarClock size={24} />
-          </div>
-          <h4 className="text-slate-900 font-bold mb-1 tracking-tight">Nenhum jogo próximo</h4>
-          <p className="text-sm text-slate-500">Os jogos aparecerão aqui assim que forem adicionados pelo administrador.</p>
-        </div>
+        <EmptyState
+          icon={CalendarClock}
+          title="Nenhum jogo próximo"
+          description="Os jogos aparecerão aqui assim que forem adicionados pelo administrador."
+        />
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 shrink-0">
           {nextGames.map((game) => (
@@ -116,20 +101,14 @@ export default function Dashboard() {
                 {game.phase}
               </div>
               <div className="flex items-center justify-between mb-6">
-                <div className="flex flex-col items-center flex-1">
-                  <img src={game.homeFlagUrl} alt={game.homeTeamName} className="w-12 h-12 rounded-full shadow-sm object-cover border border-slate-200 mb-2" />
-                  <span className="text-xs font-bold text-slate-900 text-center tracking-tight">{game.homeTeamName}</span>
-                </div>
+                <TeamColumn flagUrl={game.homeFlagUrl} name={game.homeTeamName} />
                 <div className="px-4 text-center">
                   <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 flex items-center justify-center rounded-full border border-slate-100 ring-1 ring-slate-100 uppercase">vs</span>
                 </div>
-                <div className="flex flex-col items-center flex-1">
-                  <img src={game.awayFlagUrl} alt={game.awayTeamName} className="w-12 h-12 rounded-full shadow-sm object-cover border border-slate-200 mb-2" />
-                  <span className="text-xs font-bold text-slate-900 text-center tracking-tight">{game.awayTeamName}</span>
-                </div>
+                <TeamColumn flagUrl={game.awayFlagUrl} name={game.awayTeamName} />
               </div>
-              <Link 
-                href={`/jogos#game-${game.id}`} 
+              <Link
+                href={`/jogos#game-${game.id}`}
                 className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors text-sm border border-slate-200 shadow-sm"
               >
                 {game.status === 'scheduled' ? 'Fazer Palpite' : 'Ver Detalhes'}
@@ -150,7 +129,7 @@ export default function Dashboard() {
           </div>
         </Link>
         <Link href="/grupos" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-start gap-4 hover:shadow-md transition-shadow group">
-          <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-blue-600 transition-colors text-[10px] uppercase font-bold flex items-center justify-center h-12 w-12 shrink-0">
+          <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-blue-600 transition-colors flex items-center justify-center h-12 w-12 shrink-0">
             <Users size={24} />
           </div>
           <div>

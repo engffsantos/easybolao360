@@ -1,75 +1,42 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { db } from '@/lib/firebase';
-import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, setDoc, where } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { createGroup, fetchUserGroups, joinGroupByCode } from '@/lib/firestore';
+import type { GroupSummary } from '@/lib/types';
+import { useCallback, useEffect, useState } from 'react';
 import { Users, Plus, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 
 export default function GruposPage() {
   const { user } = useAuth();
-  const [myGroups, setMyGroups] = useState<any[]>([]);
+  const [myGroups, setMyGroups] = useState<GroupSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadGroups = useCallback(async () => {
     if (!user) return;
-    const fetchGroups = async () => {
-      try {
-        const gmRef = collection(db, 'groupMembers');
-        const q = query(gmRef, where('userId', '==', user.uid), where('status', '==', 'active'));
-        const snap = await getDocs(q);
-        
-        const groups = [];
-        for (const d of snap.docs) {
-          const groupId = d.data().groupId;
-          const groupRef = doc(db, 'groups', groupId);
-          const groupSnap = await getDoc(groupRef);
-          if (groupSnap.exists()) {
-            groups.push({ id: groupId, ...groupSnap.data(), myRole: d.data().role });
-          }
-        }
-        setMyGroups(groups);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchGroups();
+    try {
+      setMyGroups(await fetchUserGroups(user.uid));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    loadGroups();
+  }, [loadGroups]);
 
   const handleCreateGroup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
-    const fd = new FormData(e.currentTarget);
-    const name = fd.get('name') as string;
-    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    
+    const form = e.currentTarget;
+    const name = new FormData(form).get('name') as string;
+
     try {
-      // Create group
-      const groupRef = await addDoc(collection(db, 'groups'), {
-        name,
-        description: '',
-        ownerId: user.uid,
-        inviteCode,
-        visibility: 'private',
-        maxMembers: 100,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      
-      // Create member
-      await addDoc(collection(db, 'groupMembers'), {
-        groupId: groupRef.id,
-        userId: user.uid,
-        role: 'owner',
-        status: 'active',
-        joinedAt: new Date().toISOString()
-      });
-      
-      window.location.reload();
+      await createGroup(user.uid, name);
+      form.reset();
+      await loadGroups();
     } catch (e) {
       console.error(e);
       alert('Erro ao criar grupo');
@@ -79,36 +46,21 @@ export default function GruposPage() {
   const handleJoinGroup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
-    const fd = new FormData(e.currentTarget);
-    const code = (fd.get('inviteCode') as string).toUpperCase();
-    
+    const form = e.currentTarget;
+    const code = (new FormData(form).get('inviteCode') as string).toUpperCase();
+
     try {
-      const gq = query(collection(db, 'groups'), where('inviteCode', '==', code));
-      const gsnap = await getDocs(gq);
-      if (gsnap.empty) {
+      const result = await joinGroupByCode(user.uid, code);
+      if (result === 'not-found') {
         alert('Código inválido ou grupo não encontrado.');
         return;
       }
-      
-      const groupId = gsnap.docs[0].id;
-      
-      // Check if already in
-      const mq = query(collection(db, 'groupMembers'), where('groupId', '==', groupId), where('userId', '==', user.uid));
-      const msnap = await getDocs(mq);
-      if (!msnap.empty && msnap.docs[0].data().status === 'active') {
+      if (result === 'already-member') {
         alert('Você já está neste grupo.');
         return;
       }
-      
-      await addDoc(collection(db, 'groupMembers'), {
-        groupId: groupId,
-        userId: user.uid,
-        role: 'member',
-        status: 'active',
-        joinedAt: new Date().toISOString()
-      });
-      
-      window.location.reload();
+      form.reset();
+      await loadGroups();
     } catch (e) {
       console.error(e);
       alert('Erro ao entrar no grupo');
@@ -173,17 +125,17 @@ export default function GruposPage() {
                   <h3 className="font-bold text-slate-900 mb-1">{g.name}</h3>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold text-slate-500 px-2 py-0.5 bg-slate-100 rounded border border-slate-200 uppercase tracking-widest">Código: {g.inviteCode}</span>
-                    {g.role === 'owner' && <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 rounded uppercase tracking-wider">Administrador</span>}
+                    {g.myRole === 'owner' && <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 rounded uppercase tracking-wider">Administrador</span>}
                   </div>
                 </div>
               </div>
             </Link>
           ))}
           {myGroups.length === 0 && (
-             <div className="text-center py-12">
-               <Users className="mx-auto h-12 w-12 text-slate-200 mb-4" />
-               <p className="text-slate-500 font-medium">Você ainda não participa de nenhum grupo.</p>
-             </div>
+            <div className="text-center py-12">
+              <Users className="mx-auto h-12 w-12 text-slate-200 mb-4" />
+              <p className="text-slate-500 font-medium">Você ainda não participa de nenhum grupo.</p>
+            </div>
           )}
         </div>
       </div>

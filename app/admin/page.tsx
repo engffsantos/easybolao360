@@ -1,84 +1,70 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { db } from '@/lib/firebase';
-import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc, where } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { createGame, fetchGames, setGameResult, updateGameStatus } from '@/lib/firestore';
+import type { Game, GameStatus } from '@/lib/types';
+import { useCallback, useEffect, useState } from 'react';
 import { ShieldAlert, Plus, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { calculatePoints } from '@/lib/utils';
+
+const STATUS_BADGE_STYLES: Record<string, string> = {
+  scheduled: 'bg-green-50 text-green-700 border-green-200',
+  blocked: 'bg-amber-50 text-amber-700 border-amber-200',
+};
+
+const inputClass = 'border border-slate-300 p-2.5 rounded-lg bg-slate-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors';
 
 export default function AdminPage() {
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [games, setGames] = useState<any[]>([]);
+  const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
     if (!authLoading && !isAdmin) {
-      if (mounted) router.replace('/');
+      router.replace('/');
     }
-    return () => { mounted = false; };
   }, [isAdmin, authLoading, router]);
 
-  useEffect(() => {
-    let mounted = true;
-    if (isAdmin) {
-      const q = query(collection(db, 'games'), orderBy('matchDate', 'desc'));
-      getDocs(q).then(snap => {
-        if (mounted) {
-          setGames(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-          setLoading(false);
-        }
-      }).catch(e => {
-        console.error(e);
-        if (mounted) setLoading(false);
-      });
-    }
-    return () => { mounted = false; };
-  }, [isAdmin]);
-
-  const fetchGames = async () => {
+  const loadGames = useCallback(async () => {
     try {
-      const q = query(collection(db, 'games'), orderBy('matchDate', 'desc'));
-      const snap = await getDocs(q);
-      setGames(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setGames(await fetchGames('desc'));
     } catch (e) {
       console.error(e);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin) loadGames();
+  }, [isAdmin, loadGames]);
 
   const handleCreateGame = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     try {
-      await addDoc(collection(db, 'games'), {
-        homeTeamId: 'tbd',
-        awayTeamId: 'tbd',
-        homeTeamName: fd.get('homeTeamName'),
-        awayTeamName: fd.get('awayTeamName'),
-        homeFlagUrl: fd.get('homeFlagUrl') || 'https://picsum.photos/seed/flag/64/64',
-        awayFlagUrl: fd.get('awayFlagUrl') || 'https://picsum.photos/seed/flag/64/64',
-        phase: fd.get('phase'),
+      await createGame({
+        homeTeamName: fd.get('homeTeamName') as string,
+        awayTeamName: fd.get('awayTeamName') as string,
+        homeFlagUrl: fd.get('homeFlagUrl') as string,
+        awayFlagUrl: fd.get('awayFlagUrl') as string,
+        phase: fd.get('phase') as string,
         matchDate: new Date(fd.get('matchDate') as string).getTime(),
-        status: 'scheduled',
-        pointsCalculated: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       });
-      fetchGames();
-      (e.target as HTMLFormElement).reset();
+      form.reset();
+      loadGames();
     } catch (e) {
       console.error(e);
       alert('Erro ao criar jogo');
     }
   };
 
-  const handleUpdateStatus = async (id: string, status: string) => {
+  const handleUpdateStatus = async (id: string, status: GameStatus) => {
     try {
-      await updateDoc(doc(db, 'games', id), { status, updatedAt: new Date().toISOString() });
-      fetchGames();
+      await updateGameStatus(id, status);
+      loadGames();
     } catch (e) {
       console.error(e);
     }
@@ -96,77 +82,9 @@ export default function AdminPage() {
     }
 
     try {
-      // 1. Update game status and official score
-      const gameRef = doc(db, 'games', id);
-      await updateDoc(gameRef, {
-        homeScoreOfficial,
-        awayScoreOfficial,
-        status: 'finished',
-        pointsCalculated: true,
-        updatedAt: new Date().toISOString()
-      });
-
-      // 2. Fetch all guesses for this game
-      const guessesSnap = await getDocs(query(collection(db, 'guesses'), where('gameId', '==', id)));
-      
-      const userIdsToRecalculate = new Set<string>();
-
-      // 3. Calculate points for each guess
-      for (const guessDoc of guessesSnap.docs) {
-        const guessData = guessDoc.data();
-        const homeScoreGuess = guessData.homeScoreGuess;
-        const awayScoreGuess = guessData.awayScoreGuess;
-        const userId = guessData.userId;
-
-        const { points, exactScoreHit, resultHit, goalHits } = calculatePoints(
-          homeScoreGuess,
-          awayScoreGuess,
-          homeScoreOfficial,
-          awayScoreOfficial
-        );
-
-        await updateDoc(doc(db, 'guesses', guessDoc.id), {
-          points,
-          exactScoreHit,
-          resultHit,
-          goalHits,
-          calculated: true,
-          updatedAt: new Date().toISOString()
-        });
-
-        userIdsToRecalculate.add(userId);
-      }
-
-      // 4. Recalculate stats for each affected user
-      for (const userId of userIdsToRecalculate) {
-        const userGuessesSnap = await getDocs(
-          query(collection(db, 'guesses'), where('userId', '==', userId), where('calculated', '==', true))
-        );
-
-        let totalPoints = 0;
-        let exactScoreHits = 0;
-        let resultHits = 0;
-        let goalHitsSum = 0;
-
-        userGuessesSnap.docs.forEach(d => {
-          const data = d.data();
-          totalPoints += data.points || 0;
-          if (data.exactScoreHit) exactScoreHits++;
-          if (data.resultHit) resultHits++;
-          goalHitsSum += data.goalHits || 0;
-        });
-
-        await updateDoc(doc(db, 'users', userId), {
-          totalPoints,
-          exactScoreHits,
-          resultHits,
-          goalHits: goalHitsSum,
-          updatedAt: new Date().toISOString()
-        });
-      }
-
+      await setGameResult(id, homeScoreOfficial, awayScoreOfficial);
       alert('Resultado salvo e pontuações calculadas com sucesso!');
-      fetchGames();
+      loadGames();
     } catch (error) {
       console.error('Error calculating points:', error);
       alert('Erro ao salvar resultado e calcular pontos.');
@@ -191,12 +109,12 @@ export default function AdminPage() {
           <h2 className="font-bold text-slate-900 flex items-center gap-2"><Plus size={18} className="text-blue-600" /> Cadastrar Jogo Oficial</h2>
         </div>
         <form onSubmit={handleCreateGame} className="p-6 grid sm:grid-cols-2 md:grid-cols-4 gap-4 bg-white">
-          <input name="homeTeamName" placeholder="Mdtte. (ex: Brasil)" required className="border border-slate-300 p-2.5 rounded-lg bg-slate-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" />
-          <input name="awayTeamName" placeholder="Visitante (ex: Alem.)" required className="border border-slate-300 p-2.5 rounded-lg bg-slate-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" />
-          <input name="phase" placeholder="Fase (ex: Final)" required className="border border-slate-300 p-2.5 rounded-lg bg-slate-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" />
-          <input type="datetime-local" name="matchDate" required className="border border-slate-300 p-2.5 rounded-lg bg-slate-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors" />
-          <input name="homeFlagUrl" placeholder="URL Bandeira Mdtte. (opcional)" className="border border-slate-300 p-2.5 rounded-lg bg-slate-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors sm:col-span-1 md:col-span-2" />
-          <input name="awayFlagUrl" placeholder="URL Bandeira Visitante (opcional)" className="border border-slate-300 p-2.5 rounded-lg bg-slate-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors sm:col-span-1 md:col-span-2" />
+          <input name="homeTeamName" placeholder="Mandante (ex: Brasil)" required className={inputClass} />
+          <input name="awayTeamName" placeholder="Visitante (ex: Alemanha)" required className={inputClass} />
+          <input name="phase" placeholder="Fase (ex: Final)" required className={inputClass} />
+          <input type="datetime-local" name="matchDate" required className={inputClass} />
+          <input name="homeFlagUrl" placeholder="URL Bandeira Mandante (opcional)" className={`${inputClass} sm:col-span-1 md:col-span-2`} />
+          <input name="awayFlagUrl" placeholder="URL Bandeira Visitante (opcional)" className={`${inputClass} sm:col-span-1 md:col-span-2`} />
           <button type="submit" className="col-span-full md:col-span-4 bg-slate-900 text-white p-3 rounded-lg font-bold hover:bg-black transition-colors shadow-md text-sm">Adicionar Partida ao Sistema</button>
         </form>
       </div>
@@ -206,16 +124,12 @@ export default function AdminPage() {
           <h2 className="font-bold text-slate-900">Listagem de Jogos</h2>
           <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase tracking-wider">{games.length} REGISTROS</span>
         </div>
-        
+
         <div className="divide-y divide-slate-100 p-4">
           {games.map(game => (
             <div key={game.id} className="p-4 hover:bg-slate-50 transition-colors rounded-xl flex flex-col md:flex-row gap-6 md:items-center">
               <div className="flex-1">
-                <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider mb-2 inline-block shadow-sm border ${
-                  game.status === 'scheduled' ? 'bg-green-50 text-green-700 border-green-200' :
-                  game.status === 'blocked' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                  'bg-slate-100 text-slate-600 border-slate-200'
-                }`}>
+                <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider mb-2 inline-block shadow-sm border ${STATUS_BADGE_STYLES[game.status] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                   {game.status}
                 </span>
                 <p className="font-bold text-slate-900 tracking-tight text-lg mb-1">{game.homeTeamName} {game.homeScoreOfficial ?? '-'} <span className="text-slate-400 px-1 font-normal text-sm">x</span> {game.awayScoreOfficial ?? '-'} {game.awayTeamName}</p>
@@ -223,7 +137,7 @@ export default function AdminPage() {
                   {new Date(game.matchDate).toLocaleString('pt-BR')} <span className="text-slate-300">•</span> {game.phase}
                 </div>
               </div>
-              
+
               <div className="flex gap-3 md:w-auto w-full">
                 {game.status === 'scheduled' && (
                   <button onClick={() => handleUpdateStatus(game.id, 'blocked')} className="flex-1 md:flex-none px-5 py-2.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-xl hover:bg-amber-200 shadow-sm uppercase tracking-wider border border-amber-200">
@@ -239,7 +153,7 @@ export default function AdminPage() {
                   </form>
                 )}
                 {game.status === 'finished' && (
-                  <button className="px-5 py-2.5 bg-slate-100 text-slate-400 text-xs font-bold rounded-xl cursor-not-allowed uppercase tracking-wider border border-slate-200">
+                  <button className="px-5 py-2.5 bg-slate-100 text-slate-400 text-xs font-bold rounded-xl cursor-not-allowed uppercase tracking-wider border border-slate-200" disabled>
                     Calculado
                   </button>
                 )}
@@ -247,9 +161,9 @@ export default function AdminPage() {
             </div>
           ))}
           {games.length === 0 && (
-             <div className="text-center py-10 text-slate-500">
-               Nenhum jogo cadastrado.
-             </div>
+            <div className="text-center py-10 text-slate-500">
+              Nenhum jogo cadastrado.
+            </div>
           )}
         </div>
       </div>

@@ -8,6 +8,14 @@ import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { motion } from 'motion/react';
 
+const navItems = [
+  { name: 'Início', href: '/', icon: Home },
+  { name: 'Jogos', href: '/jogos', icon: Trophy },
+  { name: 'Grupos', href: '/grupos', icon: Users },
+  { name: 'Ranking', href: '/ranking', icon: Trophy },
+  { name: 'Perfil', href: '/perfil', icon: UserCircle },
+];
+
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading, isAdmin } = useAuth();
   const pathname = usePathname();
@@ -21,14 +29,6 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const navItems = [
-    { name: 'Início', href: '/', icon: Home },
-    { name: 'Jogos', href: '/jogos', icon: Trophy },
-    { name: 'Grupos', href: '/grupos', icon: Users },
-    { name: 'Ranking', href: '/ranking', icon: Trophy },
-    { name: 'Perfil', href: '/perfil', icon: UserCircle },
-  ];
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4">
@@ -37,7 +37,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && pathname !== '/') {
+  if (!user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4">
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-md w-full text-center">

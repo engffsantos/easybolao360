@@ -3,8 +3,9 @@
 import { useAuth } from '@/lib/auth-context';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
-import { LogOut, UserCircle, Settings, HelpCircle, ShieldAlert } from 'lucide-react';
+import { LogOut, Settings, HelpCircle, ShieldAlert } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { Avatar } from '@/components/ui';
 
 export default function PerfilPage() {
   const { user, isAdmin } = useAuth();
@@ -24,13 +25,9 @@ export default function PerfilPage() {
   return (
     <div className="max-w-xl mx-auto space-y-6 w-full">
       <div className="bg-white rounded-2xl p-8 text-center shadow-sm border border-slate-200 flex flex-col items-center">
-        {user.photoURL ? (
-          <img src={user.photoURL} alt="Avatar" className="w-24 h-24 rounded-full border-4 border-slate-50 mb-4 shadow-sm object-cover" />
-        ) : (
-          <div className="w-24 h-24 rounded-full border-4 border-slate-50 mb-4 shadow-sm bg-slate-100 flex items-center justify-center">
-            <UserCircle className="w-12 h-12 text-slate-300" />
-          </div>
-        )}
+        <div className="mb-4">
+          <Avatar src={user.photoURL || undefined} alt={user.displayName || 'Avatar'} size={24} />
+        </div>
         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{user.displayName}</h2>
         <p className="text-slate-500 mb-2">{user.email}</p>
         
