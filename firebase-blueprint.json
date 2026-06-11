@@ -1,0 +1,177 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "status": { "type": "string" },
+        "totalPoints": { "type": "number" },
+        "exactScoreHits": { "type": "number" },
+        "resultHits": { "type": "number" },
+        "goalHits": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" }
+      },
+      "required": ["uid", "name", "email", "role", "totalPoints", "exactScoreHits", "resultHits", "goalHits", "createdAt", "lastLoginAt"]
+    },
+    "Team": {
+      "title": "Team",
+      "description": "A football team.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "shortName": { "type": "string" },
+        "flagUrl": { "type": "string" },
+        "group": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name", "shortName", "flagUrl", "group", "active"]
+    },
+    "Game": {
+      "title": "Game",
+      "description": "A match between two teams.",
+      "type": "object",
+      "properties": {
+        "homeTeamId": { "type": "string" },
+        "awayTeamId": { "type": "string" },
+        "homeTeamName": { "type": "string" },
+        "awayTeamName": { "type": "string" },
+        "homeFlagUrl": { "type": "string" },
+        "awayFlagUrl": { "type": "string" },
+        "phase": { "type": "string" },
+        "group": { "type": "string" },
+        "matchDate": { "type": "number" },
+        "status": { "type": "string", "enum": ["scheduled", "blocked", "finished"] },
+        "homeScoreOfficial": { "type": ["number", "null"] },
+        "awayScoreOfficial": { "type": ["number", "null"] },
+        "pointsCalculated": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["homeTeamId", "awayTeamId", "homeTeamName", "awayTeamName", "homeFlagUrl", "awayFlagUrl", "phase", "matchDate", "status", "pointsCalculated", "createdAt", "updatedAt"]
+    },
+    "Guess": {
+      "title": "Guess",
+      "description": "A user's guess for a specific game.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "gameId": { "type": "string" },
+        "homeScoreGuess": { "type": "number" },
+        "awayScoreGuess": { "type": "number" },
+        "points": { "type": "number" },
+        "exactScoreHit": { "type": "boolean" },
+        "resultHit": { "type": "boolean" },
+        "goalHits": { "type": "number" },
+        "calculated": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "gameId", "homeScoreGuess", "awayScoreGuess", "points", "exactScoreHit", "resultHit", "goalHits", "calculated", "createdAt", "updatedAt"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "User created bolao group.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "inviteCode": { "type": "string" },
+        "visibility": { "type": "string" },
+        "maxMembers": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "description", "ownerId", "inviteCode", "visibility", "maxMembers", "status", "createdAt", "updatedAt"]
+    },
+    "GroupMember": {
+      "title": "Group Member",
+      "description": "A member of a group.",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string" },
+        "userId": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string" },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["groupId", "userId", "role", "status", "joinedAt"]
+    },
+    "Ranking": {
+      "title": "Ranking",
+      "description": "Pre-calculated ranking stats.",
+      "type": "object",
+      "properties": {
+        "scope": { "type": "string" },
+        "groupId": { "type": ["string", "null"] },
+        "userId": { "type": "string" },
+        "totalPoints": { "type": "number" },
+        "exactScoreHits": { "type": "number" },
+        "resultHits": { "type": "number" },
+        "goalHits": { "type": "number" },
+        "totalGuesses": { "type": "number" },
+        "position": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["scope", "userId", "totalPoints", "exactScoreHits", "resultHits", "goalHits", "totalGuesses", "position", "updatedAt"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global config.",
+      "type": "object",
+      "properties": {
+        "allowGroupCreation": { "type": "boolean" },
+        "allowPublicGroups": { "type": "boolean" },
+        "guessLockMinutesBeforeMatch": { "type": "number" },
+        "exactScorePoints": { "type": "number" },
+        "resultPoints": { "type": "number" },
+        "goalHitPoints": { "type": "number" },
+        "showGuessesBeforeMatch": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["allowGroupCreation", "allowPublicGroups", "guessLockMinutesBeforeMatch", "exactScorePoints", "resultPoints", "goalHitPoints", "showGuessesBeforeMatch", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User documents containing basic profile info."
+    },
+    "/teams/{teamId}": {
+      "schema": { "$ref": "#/entities/Team" },
+      "description": "Football teams."
+    },
+    "/games/{gameId}": {
+      "schema": { "$ref": "#/entities/Game" },
+      "description": "Copa do Mundo matches."
+    },
+    "/guesses/{guessId}": {
+      "schema": { "$ref": "#/entities/Guess" },
+      "description": "User guesses for games."
+    },
+    "/groups/{groupId}": {
+      "schema": { "$ref": "#/entities/Group" },
+      "description": "User-created competition groups."
+    },
+    "/groupMembers/{membershipId}": {
+      "schema": { "$ref": "#/entities/GroupMember" },
+      "description": "Junction collection for users and groups."
+    },
+    "/rankings/{rankingId}": {
+      "schema": { "$ref": "#/entities/Ranking" },
+      "description": "Pre-calculated leaderboards."
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/Settings" },
+      "description": "Global Settings."
+    }
+  }
+}
