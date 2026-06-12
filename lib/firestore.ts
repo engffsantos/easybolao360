@@ -74,6 +74,18 @@ export async function updateGameStatus(gameId: string, status: GameStatus): Prom
   await updateDoc(doc(db, 'games', gameId), { status, updatedAt: nowIso() });
 }
 
+export async function updateGame(gameId: string, input: NewGameInput): Promise<void> {
+  await updateDoc(doc(db, 'games', gameId), {
+    homeTeamName: input.homeTeamName,
+    awayTeamName: input.awayTeamName,
+    homeFlagUrl: input.homeFlagUrl || 'https://picsum.photos/seed/flag/64/64',
+    awayFlagUrl: input.awayFlagUrl || 'https://picsum.photos/seed/flag/64/64',
+    phase: input.phase,
+    matchDate: input.matchDate,
+    updatedAt: nowIso(),
+  });
+}
+
 /**
  * Registra o placar oficial de um jogo, calcula os pontos de todos os
  * palpites e recalcula as estatísticas agregadas dos usuários afetados.

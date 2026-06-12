@@ -33,6 +33,21 @@ export function brtInputToTimestamp(value: string): number {
   return new Date(`${value}:00-03:00`).getTime();
 }
 
+/** Converte um timestamp UTC no valor de input datetime-local (YYYY-MM-DDTHH:mm) em horário de Brasília. */
+export function timestampToBrtInput(timestamp: number): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: BRT_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(timestamp));
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+}
+
 export interface GuessCalculationResult {
   points: number;
   exactScoreHit: boolean;

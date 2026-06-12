@@ -1,12 +1,12 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { createGame, fetchGames, setGameResult, updateGameStatus } from '@/lib/firestore';
+import { createGame, fetchGames, setGameResult, updateGame, updateGameStatus } from '@/lib/firestore';
 import { seedTodayGames } from '@/lib/seed-games';
-import { brtInputToTimestamp, formatDateTimeBrt } from '@/lib/utils';
+import { brtInputToTimestamp, formatDateTimeBrt, timestampToBrtInput } from '@/lib/utils';
 import type { Game, GameStatus } from '@/lib/types';
 import { useCallback, useEffect, useState } from 'react';
-import { ShieldAlert, Plus, Check, CalendarPlus } from 'lucide-react';
+import { ShieldAlert, Plus, Check, CalendarPlus, Pencil, X, Unlock, ClipboardEdit } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
@@ -14,7 +14,35 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
   blocked: 'bg-amber-50 text-amber-700 border-amber-200',
 };
 
-const inputClass = 'border border-slate-300 p-2.5 rounded-lg bg-slate-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors';
+const STATUS_LABELS: Record<string, string> = {
+  scheduled: 'Agendado',
+  blocked: 'Bloqueado',
+  finished: 'Finalizado',
+};
+
+const inputClass = 'border border-slate-300 p-2.5 rounded-lg bg-slate-50 text-sm outline-none focus:border-blue-500 focus:bg-white transition-colors text-slate-900';
+
+function gameInputFromForm(fd: FormData) {
+  return {
+    homeTeamName: fd.get('homeTeamName') as string,
+    awayTeamName: fd.get('awayTeamName') as string,
+    homeFlagUrl: fd.get('homeFlagUrl') as string,
+    awayFlagUrl: fd.get('awayFlagUrl') as string,
+    phase: fd.get('phase') as string,
+    matchDate: brtInputToTimestamp(fd.get('matchDate') as string),
+  };
+}
+
+function ResultForm({ game, onSubmit }: { game: Game; onSubmit: (e: React.FormEvent<HTMLFormElement>) => void }) {
+  return (
+    <form onSubmit={onSubmit} className="flex items-center gap-2 w-full">
+      <input name="homeScore" type="number" min="0" required placeholder="C" defaultValue={game.homeScoreOfficial ?? ''} className="w-14 p-2.5 border border-slate-300 bg-slate-50 rounded-xl text-center font-bold text-slate-900" />
+      <span className="text-slate-400 font-bold text-xs uppercase">vs</span>
+      <input name="awayScore" type="number" min="0" required placeholder="V" defaultValue={game.awayScoreOfficial ?? ''} className="w-14 p-2.5 border border-slate-300 bg-slate-50 rounded-xl text-center font-bold text-slate-900" />
+      <button type="submit" title="Salvar resultado e calcular pontos" className="p-2.5 bg-green-500 text-white rounded-xl hover:bg-green-600 shadow-md shadow-green-200"><Check size={20}/></button>
+    </form>
+  );
+}
 
 export default function AdminPage() {
   const { isAdmin, loading: authLoading } = useAuth();
@@ -22,6 +50,8 @@ export default function AdminPage() {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingResultId, setEditingResultId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -46,21 +76,25 @@ export default function AdminPage() {
   const handleCreateGame = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
-    const fd = new FormData(form);
     try {
-      await createGame({
-        homeTeamName: fd.get('homeTeamName') as string,
-        awayTeamName: fd.get('awayTeamName') as string,
-        homeFlagUrl: fd.get('homeFlagUrl') as string,
-        awayFlagUrl: fd.get('awayFlagUrl') as string,
-        phase: fd.get('phase') as string,
-        matchDate: brtInputToTimestamp(fd.get('matchDate') as string),
-      });
+      await createGame(gameInputFromForm(new FormData(form)));
       form.reset();
       loadGames();
     } catch (e) {
       console.error(e);
       alert('Erro ao criar jogo');
+    }
+  };
+
+  const handleEditGame = async (id: string, e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    try {
+      await updateGame(id, gameInputFromForm(new FormData(e.currentTarget)));
+      setEditingId(null);
+      loadGames();
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao salvar as alterações do jogo.');
     }
   };
 
@@ -102,6 +136,7 @@ export default function AdminPage() {
 
     try {
       await setGameResult(id, homeScoreOfficial, awayScoreOfficial);
+      setEditingResultId(null);
       alert('Resultado salvo e pontuações calculadas com sucesso!');
       loadGames();
     } catch (error) {
@@ -153,37 +188,73 @@ export default function AdminPage() {
 
         <div className="divide-y divide-slate-100 p-4">
           {games.map(game => (
-            <div key={game.id} className="p-4 hover:bg-slate-50 transition-colors rounded-xl flex flex-col md:flex-row gap-6 md:items-center">
-              <div className="flex-1">
-                <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider mb-2 inline-block shadow-sm border ${STATUS_BADGE_STYLES[game.status] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                  {game.status}
-                </span>
-                <p className="font-bold text-slate-900 tracking-tight text-lg mb-1">{game.homeTeamName} {game.homeScoreOfficial ?? '-'} <span className="text-slate-400 px-1 font-normal text-sm">x</span> {game.awayScoreOfficial ?? '-'} {game.awayTeamName}</p>
-                <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                  {formatDateTimeBrt(game.matchDate)} <span className="text-slate-300">•</span> {game.phase}
-                </div>
-              </div>
+            <div key={game.id} className="p-4 hover:bg-slate-50 transition-colors rounded-xl">
+              {editingId === game.id ? (
+                <form onSubmit={(e) => handleEditGame(game.id, e)} className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  <input name="homeTeamName" defaultValue={game.homeTeamName} placeholder="Mandante" required className={inputClass} />
+                  <input name="awayTeamName" defaultValue={game.awayTeamName} placeholder="Visitante" required className={inputClass} />
+                  <input name="phase" defaultValue={game.phase} placeholder="Fase" required className={inputClass} />
+                  <input type="datetime-local" name="matchDate" defaultValue={timestampToBrtInput(game.matchDate)} required title="Horário de Brasília" className={inputClass} />
+                  <input name="homeFlagUrl" defaultValue={game.homeFlagUrl} placeholder="URL Bandeira Mandante" className={`${inputClass} md:col-span-2`} />
+                  <input name="awayFlagUrl" defaultValue={game.awayFlagUrl} placeholder="URL Bandeira Visitante" className={`${inputClass} md:col-span-2`} />
+                  <div className="col-span-full flex gap-3 justify-end">
+                    <button type="button" onClick={() => setEditingId(null)} className="px-5 py-2.5 bg-white border border-slate-300 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 uppercase tracking-wider flex items-center gap-1.5">
+                      <X size={14} /> Cancelar
+                    </button>
+                    <button type="submit" className="px-5 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-black shadow-md uppercase tracking-wider flex items-center gap-1.5">
+                      <Check size={14} /> Salvar Alterações
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex flex-col md:flex-row gap-6 md:items-center">
+                  <div className="flex-1">
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider mb-2 inline-block shadow-sm border ${STATUS_BADGE_STYLES[game.status] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                      {STATUS_LABELS[game.status] ?? game.status}
+                    </span>
+                    <p className="font-bold text-slate-900 tracking-tight text-lg mb-1">{game.homeTeamName} {game.homeScoreOfficial ?? '-'} <span className="text-slate-400 px-1 font-normal text-sm">x</span> {game.awayScoreOfficial ?? '-'} {game.awayTeamName}</p>
+                    <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                      {formatDateTimeBrt(game.matchDate)} <span className="text-slate-300">•</span> {game.phase}
+                    </div>
+                  </div>
 
-              <div className="flex gap-3 md:w-auto w-full">
-                {game.status === 'scheduled' && (
-                  <button onClick={() => handleUpdateStatus(game.id, 'blocked')} className="flex-1 md:flex-none px-5 py-2.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-xl hover:bg-amber-200 shadow-sm uppercase tracking-wider border border-amber-200">
-                    Bloquear Palpites
-                  </button>
-                )}
-                {game.status === 'blocked' && (
-                  <form onSubmit={(e) => handleSetResult(game.id, e)} className="flex items-center gap-2 w-full">
-                    <input name="homeScore" type="number" required placeholder="C" className="w-14 p-2.5 border border-slate-300 bg-slate-50 rounded-xl text-center font-bold text-slate-900" />
-                    <span className="text-slate-400 font-bold text-xs uppercase">vs</span>
-                    <input name="awayScore" type="number" required placeholder="V" className="w-14 p-2.5 border border-slate-300 bg-slate-50 rounded-xl text-center font-bold text-slate-900" />
-                    <button type="submit" className="p-2.5 bg-green-500 text-white rounded-xl hover:bg-green-600 shadow-md shadow-green-200"><Check size={20}/></button>
-                  </form>
-                )}
-                {game.status === 'finished' && (
-                  <button className="px-5 py-2.5 bg-slate-100 text-slate-400 text-xs font-bold rounded-xl cursor-not-allowed uppercase tracking-wider border border-slate-200" disabled>
-                    Calculado
-                  </button>
-                )}
-              </div>
+                  <div className="flex flex-wrap gap-3 md:w-auto w-full items-center">
+                    {game.status === 'scheduled' && (
+                      <button onClick={() => handleUpdateStatus(game.id, 'blocked')} className="flex-1 md:flex-none px-5 py-2.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-xl hover:bg-amber-200 shadow-sm uppercase tracking-wider border border-amber-200">
+                        Bloquear Palpites
+                      </button>
+                    )}
+
+                    {game.status === 'blocked' && (
+                      <>
+                        <ResultForm game={game} onSubmit={(e) => handleSetResult(game.id, e)} />
+                        <button onClick={() => handleUpdateStatus(game.id, 'scheduled')} title="Reabrir palpites" className="px-3 py-2.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-200 border border-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
+                          <Unlock size={14} /> Reabrir
+                        </button>
+                      </>
+                    )}
+
+                    {game.status === 'finished' && (
+                      editingResultId === game.id ? (
+                        <>
+                          <ResultForm game={game} onSubmit={(e) => handleSetResult(game.id, e)} />
+                          <button onClick={() => setEditingResultId(null)} title="Cancelar correção" className="px-3 py-2.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-200 border border-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
+                            <X size={14} /> Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => setEditingResultId(game.id)} className="flex-1 md:flex-none px-5 py-2.5 bg-green-50 text-green-700 text-xs font-bold rounded-xl hover:bg-green-100 border border-green-200 uppercase tracking-wider flex items-center gap-1.5 justify-center">
+                          <ClipboardEdit size={14} /> Corrigir Resultado
+                        </button>
+                      )
+                    )}
+
+                    <button onClick={() => setEditingId(game.id)} title="Editar jogo" className="px-3 py-2.5 bg-white text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-100 border border-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Pencil size={14} /> Editar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
           {games.length === 0 && (
