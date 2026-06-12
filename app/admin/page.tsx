@@ -2,9 +2,11 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { createGame, fetchGames, setGameResult, updateGameStatus } from '@/lib/firestore';
+import { seedTodayGames } from '@/lib/seed-games';
+import { brtInputToTimestamp, formatDateTimeBrt } from '@/lib/utils';
 import type { Game, GameStatus } from '@/lib/types';
 import { useCallback, useEffect, useState } from 'react';
-import { ShieldAlert, Plus, Check } from 'lucide-react';
+import { ShieldAlert, Plus, Check, CalendarPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
@@ -19,6 +21,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -51,13 +54,29 @@ export default function AdminPage() {
         homeFlagUrl: fd.get('homeFlagUrl') as string,
         awayFlagUrl: fd.get('awayFlagUrl') as string,
         phase: fd.get('phase') as string,
-        matchDate: new Date(fd.get('matchDate') as string).getTime(),
+        matchDate: brtInputToTimestamp(fd.get('matchDate') as string),
       });
       form.reset();
       loadGames();
     } catch (e) {
       console.error(e);
       alert('Erro ao criar jogo');
+    }
+  };
+
+  const handleSeedToday = async () => {
+    setSeeding(true);
+    try {
+      const { created, skipped } = await seedTodayGames();
+      alert(created > 0
+        ? `${created} jogo(s) de hoje inserido(s)${skipped > 0 ? ` (${skipped} já existia(m))` : ''}.`
+        : 'Os jogos de hoje já estavam cadastrados.');
+      loadGames();
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao inserir os jogos de hoje.');
+    } finally {
+      setSeeding(false);
     }
   };
 
@@ -105,14 +124,21 @@ export default function AdminPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
+        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center gap-4">
           <h2 className="font-bold text-slate-900 flex items-center gap-2"><Plus size={18} className="text-blue-600" /> Cadastrar Jogo Oficial</h2>
+          <button
+            onClick={handleSeedToday}
+            disabled={seeding}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors disabled:opacity-60 flex items-center gap-2 whitespace-nowrap"
+          >
+            <CalendarPlus size={16} /> {seeding ? 'Inserindo...' : 'Inserir jogos de hoje'}
+          </button>
         </div>
         <form onSubmit={handleCreateGame} className="p-6 grid sm:grid-cols-2 md:grid-cols-4 gap-4 bg-white">
           <input name="homeTeamName" placeholder="Mandante (ex: Brasil)" required className={inputClass} />
           <input name="awayTeamName" placeholder="Visitante (ex: Alemanha)" required className={inputClass} />
           <input name="phase" placeholder="Fase (ex: Final)" required className={inputClass} />
-          <input type="datetime-local" name="matchDate" required className={inputClass} />
+          <input type="datetime-local" name="matchDate" required title="Horário de Brasília" className={inputClass} />
           <input name="homeFlagUrl" placeholder="URL Bandeira Mandante (opcional)" className={`${inputClass} sm:col-span-1 md:col-span-2`} />
           <input name="awayFlagUrl" placeholder="URL Bandeira Visitante (opcional)" className={`${inputClass} sm:col-span-1 md:col-span-2`} />
           <button type="submit" className="col-span-full md:col-span-4 bg-slate-900 text-white p-3 rounded-lg font-bold hover:bg-black transition-colors shadow-md text-sm">Adicionar Partida ao Sistema</button>
@@ -134,7 +160,7 @@ export default function AdminPage() {
                 </span>
                 <p className="font-bold text-slate-900 tracking-tight text-lg mb-1">{game.homeTeamName} {game.homeScoreOfficial ?? '-'} <span className="text-slate-400 px-1 font-normal text-sm">x</span> {game.awayScoreOfficial ?? '-'} {game.awayTeamName}</p>
                 <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                  {new Date(game.matchDate).toLocaleString('pt-BR')} <span className="text-slate-300">•</span> {game.phase}
+                  {formatDateTimeBrt(game.matchDate)} <span className="text-slate-300">•</span> {game.phase}
                 </div>
               </div>
 

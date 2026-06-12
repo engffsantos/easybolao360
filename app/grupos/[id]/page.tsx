@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { deleteGroup, fetchGroup, fetchGroupMembers, leaveGroup } from '@/lib/firestore';
 import type { Group, GroupMemberProfile } from '@/lib/types';
 import { LeaderboardRow, PulseSkeleton } from '@/components/ui';
+import { formatDateBrt } from '@/lib/utils';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Trophy, ArrowLeft, Copy, Check, LogOut, Trash2, Users } from 'lucide-react';
@@ -105,7 +106,7 @@ export default function GrupoDetailPage() {
             <span className="text-slate-400 text-xs flex items-center gap-1"><Users size={12} /> {members.length} {members.length === 1 ? 'membro' : 'membros'}</span>
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-white">{group?.name}</h1>
-          <p className="text-slate-400 text-sm">Criado em {group ? new Date(group.createdAt).toLocaleDateString('pt-BR') : ''}</p>
+          <p className="text-slate-400 text-sm">Criado em {group ? formatDateBrt(group.createdAt) : ''}</p>
         </div>
 
         <div className="relative z-10 flex flex-wrap gap-3 w-full md:w-auto">

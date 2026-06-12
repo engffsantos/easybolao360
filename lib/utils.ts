@@ -5,11 +5,32 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Todas as datas do app são exibidas no horário de Brasília,
+// independentemente do fuso do navegador.
+export const BRT_TIME_ZONE = 'America/Sao_Paulo';
+
 export function formatMatchDate(timestamp: number): string {
   const date = new Date(timestamp);
-  const day = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const day = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: BRT_TIME_ZONE });
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: BRT_TIME_ZONE });
   return `${day} • ${time}`;
+}
+
+export function formatDateTimeBrt(timestamp: number): string {
+  return new Date(timestamp).toLocaleString('pt-BR', { timeZone: BRT_TIME_ZONE });
+}
+
+export function formatDateBrt(date: string | number): string {
+  return new Date(date).toLocaleDateString('pt-BR', { timeZone: BRT_TIME_ZONE });
+}
+
+/**
+ * Converte o valor de um input datetime-local (YYYY-MM-DDTHH:mm),
+ * interpretado como horário de Brasília, em timestamp UTC (ms).
+ * O Brasil não adota horário de verão desde 2019, então o offset -03:00 é fixo.
+ */
+export function brtInputToTimestamp(value: string): number {
+  return new Date(`${value}:00-03:00`).getTime();
 }
 
 export interface GuessCalculationResult {

@@ -7,6 +7,15 @@ import { usePathname } from 'next/navigation';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { motion } from 'motion/react';
+import { useState } from 'react';
+
+const loginErrorMessages: Record<string, string> = {
+  'auth/unauthorized-domain':
+    'Este domínio não está autorizado no Firebase. Adicione-o em Authentication → Settings → Authorized domains.',
+  'auth/operation-not-allowed': 'O login com Google não está habilitado no projeto Firebase.',
+  'auth/popup-closed-by-user': 'A janela de login foi fechada antes de concluir.',
+  'auth/popup-blocked': 'O navegador bloqueou a janela de login. Permita pop-ups e tente novamente.',
+};
 
 const navItems = [
   { name: 'Início', href: '/', icon: Home },
@@ -19,13 +28,20 @@ const navItems = [
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading, isAdmin } = useAuth();
   const pathname = usePathname();
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleLogin = async () => {
+    setLoginError(null);
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
     } catch (error) {
       console.error('Error logging in:', error);
+      const code = (error as { code?: string })?.code;
+      const message =
+        (code && loginErrorMessages[code]) ||
+        `Não foi possível entrar. Verifique a configuração do Firebase (código: ${code || 'desconhecido'}).`;
+      setLoginError(message);
     }
   };
 
@@ -53,6 +69,11 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
             <LogIn size={20} />
             Entrar com Google
           </button>
+          {loginError && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl text-left">
+              {loginError}
+            </div>
+          )}
         </div>
       </div>
     );
