@@ -1,12 +1,12 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { createGame, fetchGames, setGameResult, updateGame, updateGameStatus } from '@/lib/firestore';
+import { createGame, deleteGame, fetchGames, setGameResult, updateGame, updateGameStatus } from '@/lib/firestore';
 import { seedTodayGames } from '@/lib/seed-games';
 import { brtInputToTimestamp, formatDateTimeBrt, timestampToBrtInput } from '@/lib/utils';
 import type { Game, GameStatus } from '@/lib/types';
 import { useCallback, useEffect, useState } from 'react';
-import { ShieldAlert, Plus, Check, CalendarPlus, Pencil, X, Unlock, ClipboardEdit, RefreshCw } from 'lucide-react';
+import { ShieldAlert, Plus, Check, CalendarPlus, Pencil, X, Unlock, ClipboardEdit, RefreshCw, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
@@ -139,6 +139,18 @@ export default function AdminPage() {
       alert(`Erro ao sincronizar: ${e instanceof Error ? e.message : 'desconhecido'}`);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleDeleteGame = async (game: Game) => {
+    const label = `${game.homeTeamName} x ${game.awayTeamName}`;
+    if (!confirm(`Excluir permanentemente o jogo "${label}"? Os palpites associados também serão removidos.`)) return;
+    try {
+      await deleteGame(game.id);
+      loadGames();
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao excluir o jogo.');
     }
   };
 
@@ -289,6 +301,9 @@ export default function AdminPage() {
 
                     <button onClick={() => setEditingId(game.id)} title="Editar jogo" className="px-3 py-2.5 bg-white text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-100 border border-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
                       <Pencil size={14} /> Editar
+                    </button>
+                    <button onClick={() => handleDeleteGame(game)} title="Excluir jogo e palpites" className="px-3 py-2.5 bg-red-50 text-red-600 text-xs font-bold rounded-xl hover:bg-red-100 border border-red-200 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Trash2 size={14} /> Excluir
                     </button>
                   </div>
                 </div>

@@ -83,6 +83,15 @@ export async function updateGameStatus(gameId: string, status: GameStatus): Prom
   await updateDoc(doc(db, 'games', gameId), { status, updatedAt: nowIso() });
 }
 
+/** Exclui um jogo e todos os palpites associados a ele. */
+export async function deleteGame(gameId: string): Promise<void> {
+  const guessesSnap = await getDocs(query(collection(db, 'guesses'), where('gameId', '==', gameId)));
+  const batch = writeBatch(db);
+  guessesSnap.docs.forEach(d => batch.delete(d.ref));
+  batch.delete(doc(db, 'games', gameId));
+  await batch.commit();
+}
+
 export async function updateGame(gameId: string, input: NewGameInput): Promise<void> {
   await updateDoc(doc(db, 'games', gameId), {
     homeTeamName: input.homeTeamName,
