@@ -34,7 +34,7 @@ const GAMES_2026_06_11: SeedGame[] = [
     awayTeamName: 'Tchéquia',
     homeFlagUrl: 'https://flagcdn.com/w80/kr.png',
     awayFlagUrl: 'https://flagcdn.com/w80/cz.png',
-    phase: 'Fase de Grupos',
+    phase: 'Grupo A',
     matchDateUtc: [2026, 5, 12, 2, 0], // 23h de Brasília (11/06)
     status: 'scheduled',
   },
@@ -43,16 +43,24 @@ const GAMES_2026_06_11: SeedGame[] = [
 export interface SeedResult {
   created: number;
   skipped: number;
+  updated: number;
 }
 
 export async function seedTodayGames(): Promise<SeedResult> {
-  const result: SeedResult = { created: 0, skipped: 0 };
+  const result: SeedResult = { created: 0, skipped: 0, updated: 0 };
 
   for (const game of GAMES_2026_06_11) {
     const gameRef = doc(db, 'games', game.id);
     const existing = await getDoc(gameRef);
     if (existing.exists()) {
-      result.skipped++;
+      // Corrige apenas a fase de docs já inseridos com valor antigo,
+      // sem tocar em status, placar ou edições do admin.
+      if (existing.data().phase !== game.phase) {
+        await setDoc(gameRef, { phase: game.phase, updatedAt: new Date().toISOString() }, { merge: true });
+        result.updated++;
+      } else {
+        result.skipped++;
+      }
       continue;
     }
 

@@ -101,9 +101,14 @@ export default function AdminPage() {
   const handleSeedToday = async () => {
     setSeeding(true);
     try {
-      const { created, skipped } = await seedTodayGames();
-      alert(created > 0
-        ? `${created} jogo(s) de hoje inserido(s)${skipped > 0 ? ` (${skipped} já existia(m))` : ''}.`
+      const { created, skipped, updated } = await seedTodayGames();
+      const parts = [
+        created > 0 ? `${created} inserido(s)` : '',
+        updated > 0 ? `${updated} corrigido(s)` : '',
+        skipped > 0 ? `${skipped} já existia(m)` : '',
+      ].filter(Boolean);
+      alert(parts.length > 0 && (created > 0 || updated > 0)
+        ? `Jogos de hoje: ${parts.join(', ')}.`
         : 'Os jogos de hoje já estavam cadastrados.');
       loadGames();
     } catch (e) {
