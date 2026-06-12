@@ -1,7 +1,8 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { fetchGames, fetchRankingPosition, fetchUserProfile } from '@/lib/firestore';
+import { fetchRankingPosition, fetchUpcomingGames, fetchUserProfile } from '@/lib/firestore';
+import { isGameLocked } from '@/lib/utils';
 import type { Game } from '@/lib/types';
 import { EmptyState, TeamColumn } from '@/components/ui';
 import { Trophy, CalendarClock, AlertCircle, Users } from 'lucide-react';
@@ -23,7 +24,7 @@ export default function Dashboard() {
         const totalPoints = profile?.totalPoints || 0;
         const [position, games] = await Promise.all([
           fetchRankingPosition(totalPoints),
-          fetchGames('asc', 5),
+          fetchUpcomingGames(5),
         ]);
         setStats({ totalPoints, position });
         setNextGames(games);
@@ -111,7 +112,7 @@ export default function Dashboard() {
                 href={`/jogos#game-${game.id}`}
                 className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors text-sm border border-slate-200 shadow-sm"
               >
-                {game.status === 'scheduled' ? 'Fazer Palpite' : 'Ver Detalhes'}
+                {isGameLocked(game) ? 'Ver Detalhes' : 'Fazer Palpite'}
               </Link>
             </div>
           ))}

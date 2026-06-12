@@ -3,10 +3,10 @@
 import { useAuth } from '@/lib/auth-context';
 import { fetchGames, fetchUserGuesses, saveGuess } from '@/lib/firestore';
 import type { Game, Guess } from '@/lib/types';
-import { formatMatchDate } from '@/lib/utils';
+import { brtDayKey, formatDayHeaderBrt, formatMatchDate, isGameLocked } from '@/lib/utils';
 import { PulseSkeleton, Spinner, TeamColumn } from '@/components/ui';
 import { FormEvent, useEffect, useState } from 'react';
-import { Save, CheckCircle2, Clock, Lock, Trophy } from 'lucide-react';
+import { Save, CheckCircle2, Clock, Lock, Trophy, CalendarDays } from 'lucide-react';
 
 function ScoreInput({ name, defaultValue, disabled }: { name: string; defaultValue?: number; disabled: boolean }) {
   return (
@@ -50,9 +50,14 @@ export default function JogosPage() {
     fetchData();
   }, [user]);
 
-  const handleSaveGuess = async (gameId: string, e: FormEvent<HTMLFormElement>) => {
+  const handleSaveGuess = async (game: Game, e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
+    if (isGameLocked(game)) {
+      alert('O horário deste jogo já chegou — palpites bloqueados.');
+      return;
+    }
+    const gameId = game.id;
 
     const formData = new FormData(e.currentTarget);
     const homeScore = parseInt(formData.get('homeScore') as string);
@@ -93,12 +98,19 @@ export default function JogosPage() {
       </header>
 
       <div className="flex flex-col gap-6">
-        {games.map(game => {
+        {games.map((game, index) => {
           const guess = guesses[game.id];
-          const isBlocked = game.status !== 'scheduled';
+          const isBlocked = isGameLocked(game);
+          const isNewDay = index === 0 || brtDayKey(games[index - 1].matchDate) !== brtDayKey(game.matchDate);
 
           return (
-            <div key={game.id} id={`game-${game.id}`} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col scroll-mt-20">
+            <div key={game.id} className="flex flex-col gap-6">
+              {isNewDay && (
+                <h2 className="flex items-center gap-2 text-sm font-bold text-slate-500 uppercase tracking-widest mt-2 first:mt-0">
+                  <CalendarDays size={16} className="text-blue-600" /> {formatDayHeaderBrt(game.matchDate)}
+                </h2>
+              )}
+            <div id={`game-${game.id}`} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col scroll-mt-20">
               <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 <span>{game.phase}</span>
                 <div className="flex gap-2 items-center text-slate-500">
@@ -108,7 +120,7 @@ export default function JogosPage() {
               </div>
 
               <div className="p-6 md:p-8">
-                <form onSubmit={(e) => handleSaveGuess(game.id, e)}>
+                <form onSubmit={(e) => handleSaveGuess(game, e)}>
                   <div className="flex items-center justify-between mb-8">
                     <TeamColumn flagUrl={game.homeFlagUrl} name={game.homeTeamName} size="lg" />
 
@@ -160,6 +172,7 @@ export default function JogosPage() {
                   </div>
                 </form>
               </div>
+            </div>
             </div>
           );
         })}

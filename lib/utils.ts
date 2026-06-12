@@ -33,6 +33,31 @@ export function brtInputToTimestamp(value: string): number {
   return new Date(`${value}:00-03:00`).getTime();
 }
 
+/** Cabeçalho de dia para agrupamento de jogos (ex.: "quinta-feira, 11/06/2026"). */
+export function formatDayHeaderBrt(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: BRT_TIME_ZONE,
+  });
+}
+
+/** Chave de dia (YYYY-MM-DD em Brasília) para agrupar jogos. */
+export function brtDayKey(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString('en-CA', { timeZone: BRT_TIME_ZONE });
+}
+
+/**
+ * Um jogo está travado para palpites se o status não é "scheduled"
+ * ou se o horário do jogo já chegou (bloqueio automático no kickoff,
+ * mesmo antes do job atualizar o status no banco).
+ */
+export function isGameLocked(game: { status: string; matchDate: number }): boolean {
+  return game.status !== 'scheduled' || game.matchDate <= Date.now();
+}
+
 /** Converte um timestamp UTC no valor de input datetime-local (YYYY-MM-DDTHH:mm) em horário de Brasília. */
 export function timestampToBrtInput(timestamp: number): string {
   const parts = new Intl.DateTimeFormat('en-CA', {

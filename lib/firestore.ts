@@ -44,6 +44,15 @@ export async function fetchGames(direction: 'asc' | 'desc' = 'asc', max?: number
   return snap.docs.map(d => snapToData<Game>(d));
 }
 
+/** Próximos jogos: ainda não começaram (ou começaram há menos de 3h), em ordem de horário. */
+export async function fetchUpcomingGames(max = 5): Promise<Game[]> {
+  const cutoff = Date.now() - 3 * 60 * 60 * 1000;
+  const snap = await getDocs(
+    query(collection(db, 'games'), where('matchDate', '>=', cutoff), orderBy('matchDate', 'asc'), limit(max))
+  );
+  return snap.docs.map(d => snapToData<Game>(d));
+}
+
 export interface NewGameInput {
   homeTeamName: string;
   awayTeamName: string;

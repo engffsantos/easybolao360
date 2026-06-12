@@ -6,7 +6,7 @@ import { seedTodayGames } from '@/lib/seed-games';
 import { brtInputToTimestamp, formatDateTimeBrt, timestampToBrtInput } from '@/lib/utils';
 import type { Game, GameStatus } from '@/lib/types';
 import { useCallback, useEffect, useState } from 'react';
-import { ShieldAlert, Plus, Check, CalendarPlus, Pencil, X, Unlock, ClipboardEdit } from 'lucide-react';
+import { ShieldAlert, Plus, Check, CalendarPlus, Pencil, X, Unlock, ClipboardEdit, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
@@ -50,6 +50,7 @@ export default function AdminPage() {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingResultId, setEditingResultId] = useState<string | null>(null);
 
@@ -119,6 +120,28 @@ export default function AdminPage() {
     }
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/sync-games');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const lines = [
+        data.blocked?.length ? `Bloqueados: ${data.blocked.join('; ')}` : '',
+        data.finalized?.length ? `Resultados inseridos: ${data.finalized.join('; ')}` : '',
+        data.pending?.length ? `Aguardando resultado: ${data.pending.join('; ')}` : '',
+        !data.apiConfigured && data.pending?.length ? 'FOOTBALL_DATA_TOKEN não configurado — resultados não são buscados automaticamente.' : '',
+      ].filter(Boolean);
+      alert(lines.length ? lines.join('\n') : 'Tudo em dia — nada para sincronizar.');
+      loadGames();
+    } catch (e) {
+      console.error(e);
+      alert(`Erro ao sincronizar: ${e instanceof Error ? e.message : 'desconhecido'}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleUpdateStatus = async (id: string, status: GameStatus) => {
     try {
       await updateGameStatus(id, status);
@@ -166,13 +189,23 @@ export default function AdminPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center gap-4">
           <h2 className="font-bold text-slate-900 flex items-center gap-2"><Plus size={18} className="text-blue-600" /> Cadastrar Jogo Oficial</h2>
-          <button
-            onClick={handleSeedToday}
-            disabled={seeding}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors disabled:opacity-60 flex items-center gap-2 whitespace-nowrap"
-          >
-            <CalendarPlus size={16} /> {seeding ? 'Inserindo...' : 'Inserir jogos de hoje'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              title="Bloqueia jogos que já começaram e busca resultados finalizados"
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors disabled:opacity-60 flex items-center gap-2 whitespace-nowrap"
+            >
+              <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Sincronizando...' : 'Sincronizar'}
+            </button>
+            <button
+              onClick={handleSeedToday}
+              disabled={seeding}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-colors disabled:opacity-60 flex items-center gap-2 whitespace-nowrap"
+            >
+              <CalendarPlus size={16} /> {seeding ? 'Inserindo...' : 'Inserir jogos de hoje'}
+            </button>
+          </div>
         </div>
         <form onSubmit={handleCreateGame} className="p-6 grid sm:grid-cols-2 md:grid-cols-4 gap-4 bg-white">
           <input name="homeTeamName" placeholder="Mandante (ex: Brasil)" required className={inputClass} />
